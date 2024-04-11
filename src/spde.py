@@ -1,30 +1,66 @@
 
+from __future__ import annotations
+
 import math
-
 from functools import partial
-
+from typing import TYPE_CHECKING
 
 import numpy as np
 from scipy import sparse
 from sksparse import cholmod
 
-
-from .grid import Grid
 from .neighbours import Neighbours
 from .utils import map_1d_2d_nx, map_2d_1d_nx_ny
 
+if TYPE_CHECKING:
+    from .grid import Grid
+
+__all__ = ['Spde']
 
 class Spde:
+    """Represents a Stochastic Partial Differential Equation (SPDE) solver.
+
+    Attributes
+    ----------
+    _v : int
+        Order of the modified Bessel function of the second kind.
+    _d : int
+        Dimensions.
+
+    Methods
+    -------
+    __init__(grid: Grid, sigma: float = 1, a: float = 50,
+    dtype: type = np.float64) -> None
+        Initialize the SPDE.
+    revert_padding(Z_M: np.ndarray) -> np.ndarray
+        Reverts the padding.
+    create_system() -> sparse.csc_matrix
+        Create the system.
+    calc_element_terms(A: sparse.dok_matrix, i: int, j: int,
+     neigh: Neighbours) -> None
+        Calculate the elements of the matrix A.
+    calc_derivatives(i: int, j: int, neigh: Neighbours) -> tuple
+        Calculate the derivatives at a given point on the grid.
+    simulate(n: int = 1, seed: int | None = None) -> np.ndarray
+        Simulate the Stochastic Partial Differential Equation solver.
+
+    """
+
     _v = 1
     _d = 2
 
-    def __init__(
-        self,
-        grid: Grid,
-        sigma: float = 1,
-        a: float = 50,
-        dtype: type = np.float64
-    ):
+    def __init__(self, grid: Grid, sigma: float = 1, a: float = 50,
+                 dtype: type = np.float64) -> None:
+        """Initialize the SPDE.
+
+        Args:
+        ----
+            grid (Grid): The grid object to initialize the class.
+            sigma (float): The sigma value for calculations. Default is 1.
+            a (float): The a value for calculations. Default is 50.
+            dtype (type): The data type for calculations. Default is np.float64.
+
+        """
         self.grid = grid
         self.dtype = dtype
 
@@ -34,11 +70,22 @@ class Spde:
         self.tau = ((sigma * (math.gamma(alpha) ** 0.5) *
                     ((4 * np.pi) ** (self._d / 4)) * (self.k**self._v)) /
                     math.gamma(self._v) ** 0.5)
+
         self.A = self.create_system()
 
 
-    def revert_padding(self, Z_M):
+    def revert_padding(self, Z_M: np.ndarray) -> np.ndarray:
+        """Reverts the padding.
 
+        Args:
+        ----
+            Z_M (np.ndarray): The input numpy array.
+
+        Returns:
+        -------
+            np.ndarray: The numpy array with padding reverted.
+
+        """
         if Z_M.ndim == 2:
             Z_M = Z_M[self.grid.pady:-self.grid.pady,
                       self.grid.padx:-self.grid.padx]
@@ -47,10 +94,16 @@ class Spde:
                       self.grid.padx:-self.grid.padx,
                       :]
         return Z_M
-    
 
-    def create_system(self):
-        
+
+    def create_system(self) -> sparse.csc_matrix:
+        """Create the system.
+
+        Returns
+        -------
+            sparse.csc_matrix: The sparse matrix representing the system.
+
+        """
         map_2d_1d = partial(map_2d_1d_nx_ny, nx=self.grid._nx,
                                              ny=self.grid._ny)
         n = self.grid._nx*self.grid._ny
@@ -65,13 +118,28 @@ class Spde:
 
         A = sparse.csc_matrix(A)
 
-        return A 
+        return A
 
 
-    def calc_element_terms(self, A, i, j, neigh):
+    def calc_element_terms(self, A: sparse.dok_matrix, i: int, j: int,
+                           neigh: Neighbours) -> None:
+        """Calculate the elements of the matrix A.
 
+        Args:
+        ----
+        A : sparse.dok_matrix
+            The matrix to store the calculated elements.
+        i : int
+            The row index in the matrix.
+        j : int
+            The column index in the matrix.
+        neigh : Neighbours
+            Object containing information about neighboring elements in the
+            grid.
+
+        """
         a, b, c, d, e, p, q = self.calc_derivatives(i, j, neigh)
-            
+
         A[neigh.id, neigh.id] = (2*q + 2*p) + self.k**2
 
         if neigh.id_bot is not None:
@@ -99,8 +167,24 @@ class Spde:
             A[neigh.id, neigh.id_bot_right] = - e
 
 
-    def calc_derivatives(self, i, j, neigh):
+    def calc_derivatives(self, i: int, j: int, neigh: Neighbours) -> tuple:
+        """Calculate the derivatives at a given point on the grid.
 
+        Parameters
+        ----------
+        i : int
+            The x-coordinate of the point.
+        j : int
+            The y-coordinate of the point.
+        neigh : Neighbours
+            Neighbouring points information.
+
+        Returns
+        -------
+        tuple
+            Tuple containing the calculated derivatives a, b, c, d, e, p, q.
+
+        """
         H = self.grid.anisotropy.H
         dx = self.grid.dx
         dy = self.grid.dy
@@ -127,15 +211,31 @@ class Spde:
         return a, b, c, d, e, p, q
 
 
-    def simulate(self, n: int = 1):
+    def simulate(self, n: int = 1, seed: int | None = None) -> np.ndarray:
+        """Simulate.
+
+        Parameters
+        ----------
+        n : int, optional
+            Number of simulations to generate. Default is 1.
+        seed : int or None, optional
+            Random seed for reproducibility. Default is None.
+
+        Returns
+        -------
+        np.ndarray
+            Simulation results in the shape (ny, nx, n).
+
+        """
+        rng = np.random.default_rng(seed=seed)
 
         Q_yy = (self.A.T @ self.A) / self.tau**2
         factor = cholmod.cholesky(Q_yy)
 
         Z = factor.solve_Lt(
-                np.random.normal(0, 1, size=(Q_yy.shape[0], n)),
-                use_LDLt_decomposition=False) 
-        
+                rng.standard_normal(size=(Q_yy.shape[0], n)),
+                use_LDLt_decomposition=False)
+
         idxs = np.argsort(factor.P())
 
         Z = Z[idxs, :]
@@ -147,11 +247,24 @@ class Spde:
         return Z_M
 
 
-    def kriging(self, samples):
+    def kriging(self, samples: np.ndarray) -> np.ndarray:
+        """Solve for Simple kriging, based on the provided samples.
 
+        Parameters
+        ----------
+        samples : np.ndarray
+            numpy array of shape (n_samples, 3) containing the sample points
+            with x, y coordinates and values.
+
+        Returns
+        -------
+        np.ndarray
+            numpy array of shape (ny, nx) representing the kriged 2D grid.
+
+        """
         xv = samples[:,0]
         yv = samples[:,1]
-        z_ = samples[:,3]
+        z_ = samples[:,2]
 
         n_samps = z_.shape[0]
 
@@ -193,11 +306,13 @@ class Spde:
 
         Z = -factor.solve_A(Q_yx @ z_[:, np.newaxis])[:, 0]
 
-        Z_M = np.empty((ny, nx))
+        Z_M = np.empty((self._ny, self._nx))
         Z_M[i_grid, j_grid] = Z
         Z_M[yv, xv] = z_
 
         Z_M = self.revert_padding(Z_M)
 
         return Z_M
+
+
 

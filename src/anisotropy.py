@@ -1,21 +1,54 @@
+
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as Et
 from matplotlib.figure import Figure
 
+__all__ = ['Anisotropy', 'anisotropy_from_svg']
 
 class Anisotropy:
+    """Represents an anisotropy object.
 
-    def __init__(self, x: np.ndarray, y: np.ndarray , u: np.ndarray, 
-                 v: np.ndarray, beta: float, gamma: float, width: float, 
-                 height: float, dtype: type = np.float32):
+    Attributes
+    ----------
+        _x (np.ndarray): X-coordinates of vectors.
+        _y (np.ndarray): Y-coordinates of vectors.
+        _u (np.ndarray): Horizontal components of vectors.
+        _v (np.ndarray): Vertical components of vectors.
+        width (float): Width extent of the anisotropy.
+        height (float): Height extent of the anisotropy.
+        H (np.ndarray): Anisotropy tensor.
+        V (np.ndarray): Vector field tensor.
+        beta (float): Anisotropic local effect coefficient.
+        gamma (float): Isotropic baseline effect coeficient.
+        dtype (type): Data type for the fields tensors.
 
+    """
+
+    def __init__(self, x_u: np.ndarray, beta: float, gamma: float,
+                 width: float, height: float, dtype: type = np.float32,
+                 ) -> None:
+        """Initialize an Anisotropy object.
+
+        Args:
+        ----
+            x_u (np.ndarray): Anisotropy data points of shape (p, 4). Each row
+            is composed by  (x, y, u, v) where (x, y) coordinates with (u, v)
+            directions.
+            beta (float): Anisotropic local effect coefficient.
+            gamma (float): Isotropic baseline effect coeficient.
+            width (float): Width extent of the anisotropy.
+            height (float): Height extent of the anisotropy.
+            dtype (type): Data type for the fields tensors.
+            Defaults to np.float32.
+
+        """
         # No Interpolation
-        self._x = x.astype(dtype)
-        self._y = y.astype(dtype)
-        self._u = u.astype(dtype)
-        self._v = v.astype(dtype)
+        self._x = x_u[:,0].astype(dtype)
+        self._y = x_u[:,1].astype(dtype)
+        self._u = x_u[:,2].astype(dtype)
+        self._v = x_u[:,3].astype(dtype)
         self.width = width
         self.height = height
 
@@ -29,7 +62,14 @@ class Anisotropy:
         self.dtype = dtype
 
     @property
-    def x(self):
+    def x(self) -> np.ndarray:
+        """Get the X-coordinates of vectors, considering interpolation.
+
+        Returns
+        -------
+            np.ndarray: X-coordinates.
+
+        """
         if self.V is None:
             return self._x
         else:
@@ -37,7 +77,14 @@ class Anisotropy:
             return j.reshape(-1)
 
     @property
-    def y(self):
+    def y(self) -> np.ndarray:
+        """Get the Y-coordinates of vectors, considering interpolation.
+
+        Returns
+        -------
+            np.ndarray: Y-coordinates.
+
+        """
         if self.V is None:
             return self._y
         else:
@@ -45,22 +92,52 @@ class Anisotropy:
             return i.reshape(-1)
 
     @property
-    def u(self):
+    def u(self) -> np.ndarray:
+        """Get the horizontal components of vectors, considering interpolation.
+
+        Returns
+        -------
+            np.ndarray: Horizontal components.
+
+        """
         if self.V is None:
             return self._u
         else:
             return self.V[:,:,1].reshape(-1)
-        
+
     @property
-    def v(self):
+    def v(self) -> np.ndarray:
+        """Get the vertical components of vectors, considering interpolation.
+
+        Returns
+        -------
+            np.ndarray: Vertical components.
+
+        """
         if self.V is None:
             return self._v
         else:
             return self.V[:,:,0].reshape(-1)
 
 
-    def plot(self, show: bool = True, fig: Figure = None, ax: Axes = None):
+    def plot(self, fig: Figure = None, ax: Axes = None, *, show: bool = True,
+             ) -> Figure:
+        """Plot the vectors.
 
+        Args:
+        ----
+            fig (Figure, optional): Matplotlib Figure object to use for
+            plotting. Defaults to None.
+            ax (Axes, optional): Matplotlib Axes object to use for plotting.
+            Defaults to None.
+            show (bool, optional): Whether to display the plot. Defaults to
+            True.
+
+        Returns:
+        -------
+            Figure: Matplotlib Figure object.
+
+        """
         if (fig is None) & (ax is None):
             fig, ax = plt.subplots()
             ax.set_aspect('equal')
@@ -73,10 +150,23 @@ class Anisotropy:
 
         return fig
 
+def anisotropy_from_svg(path: str, beta: float, gamma: float, norm_type: str = 'norm',
+             ) -> Anisotropy:
+    """Create an Anisotropy object from an SVG file.
 
-def from_svg(path, beta: float, gamma: float, norm_type: str = 'norm'):
+    Args:
+    ----
+        path (str): Path to the SVG file.
+        beta (float): Beta parameter.
+        gamma (float): Gamma parameter.
+        norm_type (str, optional): Type of normalization. Defaults to 'norm'.
 
-    tree = ET.parse(path)
+    Returns:
+    -------
+        Anisotropy: An Anisotropy object.
+
+    """
+    tree = Et.parse(path)
     root = tree.getroot()
 
     width = float(root.attrib['width'][:-2])
@@ -96,15 +186,15 @@ def from_svg(path, beta: float, gamma: float, norm_type: str = 'norm'):
             p0 = [float(p0[0]), float(p0[1])]
             p1 = [float(p1[0]) , float(p1[1])]
 
-            # m style is incrementlal / M style is absolute
+            # m style is incremental / M style is absolute
             if style == 'M':
                 p1 = [p1[0] - p0[0], p1[1] - p0[1]]
 
-            # Flip anchor point (p0) and increment point (p1)
+            # Flip anchor point (p0) and incremental point (p1)
             p0[1] =  p0[1]
             p1[1] = p1[1]
 
-            # When in quanrdrant III and IV, sqitch to quandran I or II.
+            # When in quadrant III and IV, switch to quadrant I or II.
             if p1[0] < 0:
                 p1[0] *= -1
                 p1[1] *= -1
@@ -126,7 +216,8 @@ def from_svg(path, beta: float, gamma: float, norm_type: str = 'norm'):
     elif norm_type == 'norm':
         y = y/norm[:, np.newaxis]
     else:
-        raise ValueError(f'Unknown norm_type = "{norm_type}"')
+        msg = f'Unknown norm_type = "{norm_type}"'
+        raise ValueError(msg)
 
-    return Anisotropy(x[:, 0], x[:, 1], y[:, 0], y[:, 1], beta, gamma, width, height)
-
+    return Anisotropy(x[:, 0], x[:, 1], y[:, 0], y[:, 1], beta, gamma, width,
+                      height)

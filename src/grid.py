@@ -1,17 +1,57 @@
 
-from typing import Union
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 import numpy as np
-from .anisotropy import Anisotropy
 from  scipy.spatial import  KDTree
 
+if TYPE_CHECKING:
+    from .anisotropy import Anisotropy
+
+__all__ = ['Grid']
+
 class Grid:
+    """Grid class representing a computational grid for anisotropic simulations.
+
+    Attributes
+    ----------
+        nx (int): Number of grid points in the x-direction.
+        ny (int): Number of grid points in the y-direction.
+        dx (float): Spacing between grid points in the x-direction.
+        dy (float): Spacing between grid points in the y-direction.
+        anisotropy (Anisotropy): An Anisotropy object representing the
+        anisotropy field.
+        padx (int): Padding in the x-direction.
+        pady (int): Padding in the y-direction.
+        _nx (int): Total number of grid points including padding in the
+        x-direction.
+        _ny (int): Total number of grid points including padding in the
+        y-direction.
+
+    """
+
     _padx_pct = 15
     _pady_pct = 15
 
     def __init__(self, nx: int, ny: int, dx: float, dy: float,
                  anisotropy: Anisotropy, padx: None | int = None,
-                 pady: None | int = None):
+                 pady: None | int = None) -> None:
+        """Initialize a Grid object.
 
+        Args:
+        ----
+            nx (int): Number of grid points in the x-direction.
+            ny (int): Number of grid points in the y-direction.
+            dx (float): Spacing between grid points in the x-direction.
+            dy (float): Spacing between grid points in the y-direction.
+            anisotropy (Anisotropy): An Anisotropy object representing the
+            anisotropy field.
+            padx (None | int, optional): Padding in the x-direction. Defaults
+            to None.
+            pady (None | int, optional): Padding in the y-direction. Defaults
+            to None.
+
+        """
         self.nx = nx
         self.ny = ny
         self.dx = dx
@@ -31,15 +71,24 @@ class Grid:
         self.intrp_anisotropy()
 
 
-    def intrp_anisotropy(self, k: int = 3, scale: bool = True):
+    def intrp_anisotropy(self, k: int = 3, *, scale: bool = True) ->  None:
+        """Interpolate the anisotropy field onto the grid.
 
+        Args:
+        ----
+            k (int, optional): Number of nearest neighbors to consider in
+            interpolation. Defaults to 3.
+            scale (bool, optional): Whether to scale the anisotropy field to
+            match grid dimensions. Defaults to True.
+
+        """
         anis = self.anisotropy
 
         if scale:
             scale_x = self.nx * self.dx / anis.width
             scale_y = self.ny * self.dy / anis.height
 
-            # TODO scale u,v 
+            # TODO(ejimenez): scale u,v
         else:
             scale_x = 1
             scale_y = 1
