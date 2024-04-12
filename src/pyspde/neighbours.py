@@ -2,24 +2,6 @@ from .utils import imdict
 from dataclasses import dataclass
 from typing import Callable
 
-
-@dataclass
-class NeighCoords(imdict):
-    """NeighCoords Class.
-
-    Inmmutable object containing the 2d grid relative coordinates for a block.
-    """
-
-    id: imdict
-    id_left: imdict
-    id_top_left: imdict
-    id_top: imdict
-    id_top_right: imdict
-    id_right: imdict
-    id_bot_right: imdict
-    id_bot: imdict
-    id_bot_left: imdict
-
 class Neighbours:
     """Neighbours Class.
 
@@ -45,15 +27,15 @@ class Neighbours:
 
     """
 
-    _neighs = NeighCoords(id=imdict(i=0, j=0),
-                          id_left=imdict(i=0, j=-1),
-                          id_top_left=imdict(i=-1, j=-1),
-                          id_top=imdict(i=-1, j=0),
-                          id_top_right=imdict(i=-1, j=1),
-                          id_right=imdict(i=0, j=1),
-                          id_bot_right=imdict(i=1, j=1),
-                          id_bot=imdict(i=1, j=0),
-                          id_bot_left=imdict(i=1, j=-1))
+    _neighs = imdict(id=imdict(i=0, j=0),
+                     id_left=imdict(i=0, j=-1),
+                     id_top_left=imdict(i=-1, j=-1),
+                     id_top=imdict(i=-1, j=0),
+                     id_top_right=imdict(i=-1, j=1),
+                     id_right=imdict(i=0, j=1),
+                     id_bot_right=imdict(i=1, j=1),
+                     id_bot=imdict(i=1, j=0),
+                     id_bot_left=imdict(i=1, j=-1))
 
     def __init__(self, i: int, j: int, func: Callable) -> None:
         """Initialize the Neighbours class.

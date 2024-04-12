@@ -73,6 +73,8 @@ class Spde:
 
         self.A = self.create_system()
 
+        #np.savetxt('A_new.csv', self.A.todense(), delimiter=',', fmt='%.2f')
+
 
     def revert_padding(self, Z_M: np.ndarray) -> np.ndarray:
         """Reverts the padding.
@@ -231,9 +233,10 @@ class Spde:
 
         Q_yy = (self.A.T @ self.A) / self.tau**2
         factor = cholmod.cholesky(Q_yy)
-
+        W = rng.standard_normal(size=(Q_yy.shape[0], n))
+        #breakpoint()
         Z = factor.solve_Lt(
-                rng.standard_normal(size=(Q_yy.shape[0], n)),
+                W,
                 use_LDLt_decomposition=False)
 
         idxs = np.argsort(factor.P())
@@ -310,7 +313,8 @@ class Spde:
         Z_M[i_grid, j_grid] = Z
         Z_M[yv, xv] = z_
 
-        Z_M = self.revert_padding(Z_M)
+        Z_M = self.revert_padding(Z_M)\
+                  .squeeze()
 
         return Z_M
 

@@ -1,4 +1,6 @@
 
+import re
+
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
@@ -169,55 +171,62 @@ def anisotropy_from_svg(path: str, beta: float, gamma: float, norm_type: str = '
     tree = Et.parse(path)
     root = tree.getroot()
 
+    xmlns = re.search(r'({.*})',root.tag)
+    xmlns = xmlns.group(1) if xmlns is not None else ''
+
     width = float(root.attrib['width'][:-2])
     height = float(root.attrib['height'][:-2])
 
     P = []
-    for child in root:
-        if child.tag.endswith('path'):
-            values = child.attrib['d'][2:]
-            style = child.attrib['d'][0]
 
-            p0, p1 = values.split(' ')
+    for child in root.iter(f'{xmlns}path'):
 
-            p0 = p0.split(',')
-            p1 = p1.split(',')
+        values = child.attrib['d'][2:]
+        style = child.attrib['d'][0]
 
-            p0 = [float(p0[0]), float(p0[1])]
-            p1 = [float(p1[0]) , float(p1[1])]
+        p0, p1 = values.split(' ')
 
-            # m style is incremental / M style is absolute
-            if style == 'M':
-                p1 = [p1[0] - p0[0], p1[1] - p0[1]]
+        p0 = p0.split(',')
+        p1 = p1.split(',')
 
-            # Flip anchor point (p0) and incremental point (p1)
-            p0[1] =  p0[1]
-            p1[1] = p1[1]
+        p0 = [float(p0[0]), float(p0[1])]
+        p1 = [float(p1[0]) , float(p1[1])]
 
-            # When in quadrant III and IV, switch to quadrant I or II.
-            if p1[0] < 0:
-                p1[0] *= -1
-                p1[1] *= -1
+        # m style is incremental / M style is absolute
+        if style == 'M':
+            p1 = [p1[0] - p0[0], p1[1] - p0[1]]
 
-            P.append([p0[0], p0[1], p1[0], p1[1]])
+        # Flip anchor point (p0) and incremental point (p1)
+        p0[1] =  p0[1]
+        p1[1] = p1[1]
+
+        # When in quadrant III and IV, switch to quadrant I or II.
+        if p1[0] < 0:
+            p1[0] *= -1
+            p1[1] *= -1
+
+        P.append([p0[0], p0[1], p1[0], p1[1]])
 
     P = np.asarray(P)
-    x = P[:,:2]
-    y = P[:,2:]
 
-    norm = (y**2).sum(axis=1)**0.5
+    x = P[:,:2]
+    u = P[:,2:]
+
+    norm = (u**2).sum(axis=1)**0.5
 
     if norm_type == 'min':
         min_norm = (norm).min()
-        y = y/(min_norm)
+        u = u/(min_norm)
     elif norm_type == 'max':
         max_norm = (norm).max()
-        y = y/(max_norm)
+        u = u/(max_norm)
     elif norm_type == 'norm':
-        y = y/norm[:, np.newaxis]
+        u = u/norm[:, np.newaxis]
     else:
         msg = f'Unknown norm_type = "{norm_type}"'
         raise ValueError(msg)
+    
+    x_u = np.column_stack((x,u))
 
-    return Anisotropy(x[:, 0], x[:, 1], y[:, 0], y[:, 1], beta, gamma, width,
+    return Anisotropy(x_u, beta, gamma, width,
                       height)

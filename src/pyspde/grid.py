@@ -33,9 +33,9 @@ class Grid:
     _padx_pct = 15
     _pady_pct = 15
 
-    def __init__(self, nx: int, ny: int, dx: float, dy: float,
-                 anisotropy: Anisotropy, padx: None | int = None,
-                 pady: None | int = None) -> None:
+    def __init__(self, nx: int, ny: int, anisotropy: Anisotropy, dx: float=1,
+                 dy: float=1, padx: None | int = None, pady: None | int = None,
+                 ) -> None:
         """Initialize a Grid object.
 
         Args:
@@ -97,7 +97,7 @@ class Grid:
         y = (anis.y * scale_y) + self.pady
 
         X = np.column_stack((x, y))
-        U = np.column_stack((anis.u, anis.v))
+        U = np.column_stack((anis.u, anis.v)) 
 
         # 1D
         grid = np.meshgrid(np.arange(self._nx) * self.dx,
@@ -129,3 +129,5 @@ class Grid:
 
         anis.H = H
         anis.V = V
+
+
