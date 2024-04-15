@@ -29,7 +29,7 @@ class Anisotropy:
     """
 
     def __init__(self, x_u: np.ndarray, beta: float, gamma: float,
-                 width: float, height: float, dtype: type = np.float32,
+                 width: float, height: float, dtype: type = np.float64,
                  ) -> None:
         """Initialize an Anisotropy object.
 
@@ -152,8 +152,8 @@ class Anisotropy:
 
         return fig
 
-def anisotropy_from_svg(path: str, beta: float, gamma: float, norm_type: str = 'norm',
-             ) -> Anisotropy:
+def anisotropy_from_svg(path: str, beta: float, gamma: float,
+                        norm_type: str = 'norm') -> Anisotropy:
     """Create an Anisotropy object from an SVG file.
 
     Args:

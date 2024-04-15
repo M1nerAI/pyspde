@@ -191,14 +191,14 @@ class Spde:
         dx = self.grid.dx
         dy = self.grid.dy
 
-        if ['id_top', 'id_bot'] in neigh.allowable_neighs:
+        if neigh.has('id_top') & neigh.has('id_bot'):
             a = (H[i + 1, j, 0, 1] - H[i - 1, j, 0, 1])/(4*dx*dy)
             c = (H[i  + 1, j, 0, 0] - H[i - 1, j, 0, 0])/(4*dy**2)
         else:
             a = 0
             c = 0
 
-        if ['id_left', 'id_right'] in neigh.allowable_neighs:
+        if neigh.has('id_left') & neigh.has('id_right'):
             b = (H[i, j + 1, 1, 0] - H[i, j - 1, 1, 0])/(4*dx*dy)
             d = (H[i, j + 1, 1, 1] - H[i, j - 1, 1, 1])/(4*dx**2)
         else:
@@ -230,11 +230,14 @@ class Spde:
 
         """
         rng = np.random.default_rng(seed=seed)
-
+        #np.save('A.npy', self.A.todense())
         Q_yy = (self.A.T @ self.A) / self.tau**2
+
+        #np.save('Q_yy.npy', Q_yy.todense())
+
         factor = cholmod.cholesky(Q_yy)
         W = rng.standard_normal(size=(Q_yy.shape[0], n))
-        #breakpoint()
+
         Z = factor.solve_Lt(
                 W,
                 use_LDLt_decomposition=False)
@@ -245,7 +248,7 @@ class Spde:
 
         Z_M = Z.reshape((self.grid._ny, self.grid._nx, n))
 
-        Z_M = self.revert_padding(Z_M)
+        #Z_M = self.revert_padding(Z_M)
 
         return Z_M
 

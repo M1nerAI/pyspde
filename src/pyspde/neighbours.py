@@ -59,6 +59,23 @@ class Neighbours:
         self.allowable_neighs = [k for k, v in self.__dict__.items()
                                  if k.startswith('id_') and v is not None]
 
+    def has(self, pos: str) -> bool:
+        """Check if neighbour exists.
+
+        Parameters
+        ----------
+        pos : str
+            Neighbour to check.
+
+        Returns
+        -------
+        bool
+            A boolean indicating whether the neighbour exists.
+
+        """
+        return getattr(self, pos, None) is not None
+
+
 
     def __repr__(self) -> str:
         """Return a schematic view of neighbours.
