@@ -170,3 +170,32 @@ def sample_grid(Z: np.ndarray, dx: float, dy: float,
     X = np.column_stack((xv, yv, samps))
 
     return X
+
+
+def append_element(vals: list, rows: list, cols: list, val: float, row: int,
+                   col: int) -> None:
+    """Append an element for cosntructiong the sparse matrix.
+
+    Parameters
+    ----------
+    vals : list
+        The list to append the value to.
+    rows : list
+        The list to append the row index to.
+    cols : list
+        The list to append the column index to.
+    val : float
+        The value to append to the `vals` list.
+    row : int
+        The row index to append to the `rows` list.
+    col : int
+        The column index to append to the `cols` list.
+
+    Returns
+    -------
+    None
+
+    """
+    vals.append(val)
+    rows.append(row)
+    cols.append(col)

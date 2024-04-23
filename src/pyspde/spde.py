@@ -10,7 +10,7 @@ from scipy import sparse
 from sksparse import cholmod
 
 from .neighbours import Neighbours
-from .utils import map_1d_2d_nx, map_2d_1d_nx_ny
+from .utils import map_1d_2d_nx, map_2d_1d_nx_ny, append_element
 
 if TYPE_CHECKING:
     from .grid import Grid
@@ -96,6 +96,7 @@ class Spde:
                       :]
         return Z_M
 
+
     def create_system(self) -> sparse.csc_matrix:
         """Create the system.
 
@@ -108,21 +109,21 @@ class Spde:
                                              ny=self.grid._ny)
         n = self.grid._nx*self.grid._ny
 
-        A = sparse.dok_array((n, n), dtype=self.dtype)
+        vals, rows, cols = [], [], []
         det_H = np.ndarray(n, dtype=self.dtype)
 
         for i in range(self.grid._ny):
             for j in range(self.grid._nx):
 
                 neigh = Neighbours(i, j, map_2d_1d)
-                self.calc_element_terms(A, det_H, i, j, neigh)
+                self.calc_element_terms(vals, rows, cols, det_H, i, j, neigh)
 
-        A = sparse.csc_matrix(A)
+        A = sparse.csc_matrix((vals, (rows, cols)))
 
         return A, det_H
 
-
-    def calc_element_terms(self, A: sparse.dok_matrix, det_H: np.ndarray, 
+    def calc_element_terms(self, vals: list, rows: list, cols: list,
+                           det_H: np.ndarray, 
                            i: int, j: int, neigh: Neighbours) -> None:
         """Calculate the elements of the matrix A.
 
@@ -141,34 +142,43 @@ class Spde:
         """
         a, b, c, d, e, p, q = self.calc_derivatives(i, j, neigh)
 
-        A[neigh.id, neigh.id] = (2*q + 2*p) + self.k**2
+        append_element(vals, rows, cols, (2*q + 2*p) + self.k**2,
+                       neigh.id, neigh.id)
 
         H_x = self.grid.anisotropy.H[i, j]
         det_H[neigh.id] = H_x[0,0]*H_x[1,1] - H_x[0,1]*H_x[1,0]
 
         if neigh.id_bot is not None:
-            A[neigh.id, neigh.id_bot] = - c - p - b
+            append_element(vals, rows, cols,- c - p - b,
+                           neigh.id, neigh.id_bot)
 
         if neigh.id_bot_left is not None:
-            A[neigh.id, neigh.id_bot_left] = e
+            append_element(vals, rows, cols,e,
+                           neigh.id, neigh.id_bot_left)
 
         if neigh.id_left is not None:
-            A[neigh.id, neigh.id_left] = - q + d + a
+            append_element(vals, rows, cols,- q + d + a,
+                           neigh.id, neigh.id_left)
 
         if neigh.id_top_left is not None:
-            A[neigh.id, neigh.id_top_left] = - e
+            append_element(vals, rows, cols, - e,
+                            neigh.id, neigh.id_top_left)
 
         if neigh.id_top is not None:
-            A[neigh.id, neigh.id_top] = - p + c + b
+            append_element(vals, rows, cols,- p + c + b,
+                            neigh.id, neigh.id_top)
 
         if neigh.id_top_right is not None:
-            A[neigh.id, neigh.id_top_right] = e
+            append_element(vals, rows, cols,e,
+                             neigh.id, neigh.id_top_right)
 
         if neigh.id_right is not None:
-            A[neigh.id, neigh.id_right] = - d - q - a
+            append_element(vals, rows, cols,- d - q - a,
+                            neigh.id, neigh.id_right)
 
         if neigh.id_bot_right is not None:
-            A[neigh.id, neigh.id_bot_right] = - e
+            append_element(vals, rows, cols,- e,
+                           neigh.id, neigh.id_bot_right)
 
 
     def calc_derivatives(self, i: int, j: int, neigh: Neighbours) -> tuple:
@@ -242,7 +252,7 @@ class Spde:
             msg = ('Anisotropy field is not positive definite, '
                    'check anisotropy.check_positiveness()')
             raise RuntimeError(msg)
-        
+
         W = rng.standard_normal(size=(Q_yy.shape[0], n))
 
         Z = factor.solve_Lt(
