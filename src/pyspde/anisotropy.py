@@ -7,7 +7,9 @@ from matplotlib.axes import Axes
 import xml.etree.ElementTree as Et
 from matplotlib.figure import Figure
 
-__all__ = ['Anisotropy', 'anisotropy_from_svg']
+from .utils import get_inkscape_namespace, get_inkscape_transform
+
+__all__ = ['Anisotropy', 'anisotropy_from_svg', 'anisotropy_stationary']
 
 class Anisotropy:
     """Represents an anisotropy object.
@@ -29,8 +31,8 @@ class Anisotropy:
     """
 
     def __init__(self, x_u: np.ndarray, beta: float, gamma: float,
-                 width: float, height: float, dtype: type = np.float64,
-                 ) -> None:
+                 width: float = None, height: float = None, k: int = 3,
+                 dtype: type = np.float64, *, scale: bool = True) -> None:
         """Initialize an Anisotropy object.
 
         Args:
@@ -42,8 +44,11 @@ class Anisotropy:
             gamma (float): Isotropic baseline effect coeficient.
             width (float): Width extent of the anisotropy.
             height (float): Height extent of the anisotropy.
+            k (int): No of neighbours to consider during interpolation.
             dtype (type): Data type for the fields tensors.
             Defaults to np.float32.
+            scale (bool, optional): Whether to scale the anisotropy field to
+            match grid dimensions. Defaults to True.
 
         """
         # No Interpolation
@@ -51,8 +56,12 @@ class Anisotropy:
         self._y = x_u[:,1].astype(dtype)
         self._u = x_u[:,2].astype(dtype)
         self._v = x_u[:,3].astype(dtype)
-        self.width = width
-        self.height = height
+
+        self.width = x_u[:, 0].max() - x_u[:, 0].min() if width is None \
+                     else width
+
+        self.height = x_u[:, 1].max() - x_u[:, 1].min() if height is None \
+                     else height
 
         # Interpolated
         self.H = None
@@ -62,6 +71,8 @@ class Anisotropy:
         self.beta = beta
         self.gamma = gamma
         self.dtype = dtype
+        self.scale = scale
+        self.k = k
 
     @property
     def x(self) -> np.ndarray:
@@ -151,9 +162,47 @@ class Anisotropy:
             fig.show()
 
         return fig
+    
+    def check_positiveness(self):
+        nx_ = self.H.shape[1]
+        ny_ = self.H.shape[0]
+
+        positiveness = np.zeros((ny_, nx_),dtype=bool)
+
+        for j in range(nx_):
+            for i in range(ny_):
+                x = self.H[i, j, :, :]
+                positiveness[i, j] = np.all(np.linalg.eigvals(x) > 0)
+
+        return positiveness
+
+    def check_differenciable(self, dx, dy):
+        nx_ = self.H.shape[1]
+        ny_ = self.H.shape[0]
+
+        differenciable = np.zeros((ny_, nx_, 2, 2))
+
+        for j in range(1,nx_-1):
+            for i in range(1, ny_ - 1):
+
+                dh_dy = (self.H[i + 1, j, :, :] - self.H[i - 1, j, :, :]) / (2 * dy)
+                dh_dx = (self.H[i, j + 1, :, :] - self.H[i , j - 1, :, :]) / (2 * dx)
+
+                dh00_dy = dh_dy[0, 0]
+                dh01_dy = dh_dy[0, 1]
+                dh11_dx = dh_dx[1, 1]
+                dh10_dx = dh_dx[1, 0]
+
+
+                differenciable[i, j, 0, 0] = dh00_dy
+                differenciable[i, j, 0, 1] = dh01_dy
+                differenciable[i, j, 1, 1] = dh11_dx
+                differenciable[i, j, 1, 0] = dh10_dx
+
+        return differenciable
 
 def anisotropy_from_svg(path: str, beta: float, gamma: float,
-                        norm_type: str = 'norm') -> Anisotropy:
+                        norm_type: str = 'norm', k: int = 3) -> Anisotropy:
     """Create an Anisotropy object from an SVG file.
 
     Args:
@@ -171,13 +220,18 @@ def anisotropy_from_svg(path: str, beta: float, gamma: float,
     tree = Et.parse(path)
     root = tree.getroot()
 
-    xmlns = re.search(r'({.*})',root.tag)
-    xmlns = xmlns.group(1) if xmlns is not None else ''
+    xmlns = get_inkscape_namespace(root)
+    tfm = get_inkscape_transform(root, xmlns)
+
 
     width = float(root.attrib['width'][:-2])
     height = float(root.attrib['height'][:-2])
 
     P = []
+    
+    # Remove defitinions to skip style 'path' elements, like arrows heads.
+    defs = next(root.iter(f'{xmlns}defs'))  
+    root.remove(defs)
 
     for child in root.iter(f'{xmlns}path'):
 
@@ -200,20 +254,19 @@ def anisotropy_from_svg(path: str, beta: float, gamma: float,
         p0[1] =  p0[1]
         p1[1] = p1[1]
 
-        # When in quadrant III and IV, switch to quadrant I or II.
-        if p1[0] < 0:
-            p1[0] *= -1
-            p1[1] *= -1
+        ## When in quadrant III and IV, switch to quadrant I or II.
+        #if p1[0] < 0:
+        #    p1[0] *= -1
+        #    p1[1] *= -1
 
         P.append([p0[0], p0[1], p1[0], p1[1]])
 
     P = np.asarray(P)
 
-    x = P[:,:2]
+    x = P[:,:2] +  tfm
     u = P[:,2:]
 
     norm = (u**2).sum(axis=1)**0.5
-
     if norm_type == 'min':
         min_norm = (norm).min()
         u = u/(min_norm)
@@ -229,4 +282,14 @@ def anisotropy_from_svg(path: str, beta: float, gamma: float,
     x_u = np.column_stack((x,u))
 
     return Anisotropy(x_u, beta, gamma, width,
-                      height)
+                      height, k)
+
+
+def anisotropy_stationary(theta, gamma, beta):
+
+    theta = np.radians(theta)
+
+    v =  np.asarray([- np.sin(theta),  np.cos(theta)])
+    x_u  = np.asarray([[0,0,v[0],v[1]]])
+
+    return Anisotropy(x_u, beta, gamma, scale=False)

@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 from typing import TYPE_CHECKING
+import warnings
 
 import numpy as np
 from  scipy.spatial import  KDTree
@@ -61,9 +62,13 @@ class Grid:
         # Add Padding
         if padx is None:
             self.padx = int(np.ceil(self._padx_pct / 100 * nx))
+        else:
+            self.padx = padx
 
         if pady is None:
             self.pady = int(np.ceil(self._pady_pct / 100 * ny))
+        else:
+            self.pady = pady
 
         self._nx = nx + 2 * self.padx
         self._ny = ny + 2 * self.pady
@@ -71,20 +76,20 @@ class Grid:
         self.intrp_anisotropy()
 
 
-    def intrp_anisotropy(self, k: int = 3, *, scale: bool = True) ->  None:
+    def intrp_anisotropy(self) ->  None:
         """Interpolate the anisotropy field onto the grid.
 
         Args:
         ----
             k (int, optional): Number of nearest neighbors to consider in
             interpolation. Defaults to 3.
-            scale (bool, optional): Whether to scale the anisotropy field to
-            match grid dimensions. Defaults to True.
+
 
         """
         anis = self.anisotropy
+        k = min(anis.k,  len(anis.x))
 
-        if scale:
+        if anis.scale:
             scale_x = self.nx * self.dx / anis.width
             scale_y = self.ny * self.dy / anis.height
 
@@ -97,7 +102,7 @@ class Grid:
         y = (anis.y * scale_y) + self.pady
 
         X = np.column_stack((x, y))
-        U = np.column_stack((anis.u, anis.v)) 
+        U = np.column_stack((anis.u, anis.v))
 
         # 1D
         grid = np.meshgrid(np.arange(self._nx) * self.dx,
@@ -111,11 +116,26 @@ class Grid:
 
         dists, idxs = tree.query(grid, k=k)
 
+        if k == 1:
+            dists = dists[:, np.newaxis]
+            idxs = idxs[:, np.newaxis]
+
+        warnings.filterwarnings("error")
+
         for i,(dist, idx) in enumerate(zip(dists, idxs)):
 
-            inv_dist = dist**(-1)
-            inv_dist = inv_dist/inv_dist.sum()
+            try:
+                inv_dist = dist**(-0.25)
+                inv_dist = inv_dist/inv_dist.sum()
+            except RuntimeWarning:
+
+                inv_dist = np.zeros(k, dtype=anis.dtype)
+                inv_dist[np.argmin(dist)] = 1 
+
+
             V[i, :] = (U[idx, :] * inv_dist[:, np.newaxis]).sum(axis=0)
+
+        warnings.resetwarnings()
 
         V = V.reshape(self._ny, self._nx , 2)[:,:,::-1]
         H = np.zeros((self._ny,self._nx, 2, 2), dtype=anis.dtype)
@@ -129,4 +149,5 @@ class Grid:
 
         anis.H = H
         anis.V = V
+
 

@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyspde_Esteban_Jimenez"
+version = "0.0.1"
+authors = [
+  { name="Esteban Jimenez", email="ejimenez@minerai.com.au" },
+]
+description = "A small example package"
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/M1nerAI/pyspde"
+Issues = "https://github.com/M1nerAI/pyspde/issues"
+
+
+[tool.ruff.lint]
+select = ["ALL"]
+#I001 unsorted-imports
+#ANN101 missing-type-self
+#Q000 Double quotes instead of single quotes
+#PLR0913 toomany arguments
+#RET505 unnecesary return after else
+#N806 non-lowercase-variable-in-function 
+extend-ignore = ["I001", "ANN101", "Q000", "PLR0913", "RET505", "N806"]
+
+[tool.ruff]
+line-length = 79

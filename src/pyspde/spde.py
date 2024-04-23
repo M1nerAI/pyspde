@@ -71,9 +71,8 @@ class Spde:
                     ((4 * np.pi) ** (self._d / 4)) * (self.k**self._v)) /
                     math.gamma(self._v) ** 0.5)
 
-        self.A = self.create_system()
+        self.A, self.det_H = self.create_system()
 
-        #np.savetxt('A_new.csv', self.A.todense(), delimiter=',', fmt='%.2f')
 
 
     def revert_padding(self, Z_M: np.ndarray) -> np.ndarray:
@@ -97,7 +96,6 @@ class Spde:
                       :]
         return Z_M
 
-
     def create_system(self) -> sparse.csc_matrix:
         """Create the system.
 
@@ -111,20 +109,21 @@ class Spde:
         n = self.grid._nx*self.grid._ny
 
         A = sparse.dok_array((n, n), dtype=self.dtype)
+        det_H = np.ndarray(n, dtype=self.dtype)
 
         for i in range(self.grid._ny):
             for j in range(self.grid._nx):
 
                 neigh = Neighbours(i, j, map_2d_1d)
-                self.calc_element_terms(A, i, j, neigh)
+                self.calc_element_terms(A, det_H, i, j, neigh)
 
         A = sparse.csc_matrix(A)
 
-        return A
+        return A, det_H
 
 
-    def calc_element_terms(self, A: sparse.dok_matrix, i: int, j: int,
-                           neigh: Neighbours) -> None:
+    def calc_element_terms(self, A: sparse.dok_matrix, det_H: np.ndarray, 
+                           i: int, j: int, neigh: Neighbours) -> None:
         """Calculate the elements of the matrix A.
 
         Args:
@@ -143,6 +142,9 @@ class Spde:
         a, b, c, d, e, p, q = self.calc_derivatives(i, j, neigh)
 
         A[neigh.id, neigh.id] = (2*q + 2*p) + self.k**2
+
+        H_x = self.grid.anisotropy.H[i, j]
+        det_H[neigh.id] = H_x[0,0]*H_x[1,1] - H_x[0,1]*H_x[1,0]
 
         if neigh.id_bot is not None:
             A[neigh.id, neigh.id_bot] = - c - p - b
@@ -195,15 +197,15 @@ class Spde:
             a = (H[i + 1, j, 0, 1] - H[i - 1, j, 0, 1])/(4*dx*dy)
             c = (H[i  + 1, j, 0, 0] - H[i - 1, j, 0, 0])/(4*dy**2)
         else:
-            a = 0
-            c = 0
+            a = 0.0
+            c = 0.0
 
         if neigh.has('id_left') & neigh.has('id_right'):
             b = (H[i, j + 1, 1, 0] - H[i, j - 1, 1, 0])/(4*dx*dy)
             d = (H[i, j + 1, 1, 1] - H[i, j - 1, 1, 1])/(4*dx**2)
         else:
-            b = 0
-            d = 0
+            b = 0.0
+            d = 0.0
 
         e = (H[i, j, 0, 1] + H[i, j, 1, 0])/(4*dx*dy)
 
@@ -230,16 +232,23 @@ class Spde:
 
         """
         rng = np.random.default_rng(seed=seed)
-        #np.save('A.npy', self.A.todense())
-        Q_yy = (self.A.T @ self.A) / self.tau**2
 
-        #np.save('Q_yy.npy', Q_yy.todense())
+        Q_yy = (self.A.T @ self.A).tocsc() 
 
-        factor = cholmod.cholesky(Q_yy)
+        try:
+            factor = cholmod.cholesky(Q_yy)
+
+        except cholmod.CholmodNotPositiveDefiniteError:
+            msg = ('Anisotropy field is not positive definite, '
+                   'check anisotropy.check_positiveness()')
+            raise RuntimeError(msg)
+        
         W = rng.standard_normal(size=(Q_yy.shape[0], n))
 
         Z = factor.solve_Lt(
-                W,
+                W
+                *(self.tau**2 * (self.det_H**0.5)[factor.P() ,np.newaxis])**0.5
+                ,
                 use_LDLt_decomposition=False)
 
         idxs = np.argsort(factor.P())
@@ -248,7 +257,7 @@ class Spde:
 
         Z_M = Z.reshape((self.grid._ny, self.grid._nx, n))
 
-        #Z_M = self.revert_padding(Z_M)
+        Z_M = self.revert_padding(Z_M)
 
         return Z_M
 
@@ -268,8 +277,8 @@ class Spde:
             numpy array of shape (ny, nx) representing the kriged 2D grid.
 
         """
-        xv = samples[:,0]
-        yv = samples[:,1]
+        xv = samples[:,0].astype(int)
+        yv = samples[:,1].astype(int)
         z_ = samples[:,2]
 
         n_samps = z_.shape[0]
@@ -277,17 +286,19 @@ class Spde:
         xv += self.grid.padx
         yv += self.grid.pady
 
-        map_2d_1d = partial(map_2d_1d_nx_ny, nx=self._nx, ny=self._ny)
-        map_1d_2d = partial(map_1d_2d_nx, nx=self._nx)
+        map_2d_1d = partial(map_2d_1d_nx_ny, nx=self.grid._nx,
+                                             ny=self.grid._ny)
+        map_1d_2d = partial(map_1d_2d_nx, nx=self.grid._nx)
 
         samples_idxs = []
         for i, j in zip(yv, xv):
             idx = map_2d_1d(i, j)
             samples_idxs.append(idx)
 
+
         target_idxs, i_grid, j_grid = [], [], []
 
-        for idx in range(self._nx * self._ny):
+        for idx in range(self.grid._nx * self.grid._ny):
             if idx not in samples_idxs:
                 target_idxs.append(idx)
                 i, j = map_1d_2d(idx)
@@ -303,16 +314,22 @@ class Spde:
         A = sparse.vstack([sparse.hstack([A_xx, A_xy]),
                            sparse.hstack([A_yx, A_yy])])
 
-        Q = (A.T @ A) / self.tau**2
+        Q = (A.T @ A).tocsc()
 
         Q_yy = Q[n_samps:, n_samps:]
         Q_yx = Q[n_samps:, :n_samps]
 
-        factor = cholmod.cholesky(Q_yy)
+        try:
+            factor = cholmod.cholesky(Q_yy)
+
+        except cholmod.CholmodNotPositiveDefiniteError:
+            msg = ('Anisotropy field is not positive definite, '
+                   'check anisotropy.check_positiveness()')
+            raise RuntimeError(msg)
 
         Z = -factor.solve_A(Q_yx @ z_[:, np.newaxis])[:, 0]
 
-        Z_M = np.empty((self._ny, self._nx))
+        Z_M = np.empty((self.grid._ny, self.grid._nx))
         Z_M[i_grid, j_grid] = Z
         Z_M[yv, xv] = z_
 
@@ -320,6 +337,5 @@ class Spde:
                   .squeeze()
 
         return Z_M
-
 
 
