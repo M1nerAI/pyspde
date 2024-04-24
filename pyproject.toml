@@ -3,12 +3,12 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pyspde_Esteban_Jimenez"
-version = "0.0.1"
+name = "pyspde"
+version = "0.0.3"
 authors = [
   { name="Esteban Jimenez", email="ejimenez@minerai.com.au" },
 ]
-description = "A small example package"
+description = "PySPDE is a Python library for performing simulations and kriging of non-stationary spatial gaussian random fields with Matérn covariance, by solving the following Stochastic Partial Differential Equations (SPDEs)"
 readme = "README.md"
 requires-python = ">=3.11"
 classifiers = [
@@ -16,6 +16,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
+dependencies = ["scipy", "numpy", "matplotlib", "scikit-sparse==0.4.12"]
 
 [project.urls]
 Homepage = "https://github.com/M1nerAI/pyspde"
