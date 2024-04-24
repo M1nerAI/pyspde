@@ -17,6 +17,7 @@ pip install pyspde
 
 On Windows systems:
 ```
+conda install -c conda-forge suitesparse
 pip install pyspde
 ```
 
