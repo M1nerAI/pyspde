@@ -1,4 +1,3 @@
-
 import re
 
 import numpy as np
@@ -162,8 +161,20 @@ class Anisotropy:
             fig.show()
 
         return fig
-    
-    def check_positiveness(self):
+
+    def check_positiveness(self) -> np.ndarray:
+        """Check if all the matrices in the `H` attribute are positive definite.
+
+        Returns:
+        -------
+            positiveness (ndarray):
+                A boolean array of shape `(ny_, nx_)` where `ny_` and `nx_`
+                are the number of rows and columns in the `H` attribute
+                respectively.
+                It indicates whether each matrix in `H` is positive definite
+                or not.
+
+        """
         nx_ = self.H.shape[1]
         ny_ = self.H.shape[0]
 
@@ -176,7 +187,23 @@ class Anisotropy:
 
         return positiveness
 
-    def check_differenciable(self, dx, dy):
+    def check_differenciable(self, dx: int, dy: int) -> np.ndarray:
+        """Check if H is differenciable.
+
+        Parameters
+        ----------
+        dx : int
+            The increment in the x-direction.
+        dy : int
+            The increment in the y-direction.
+
+        Returns
+        -------
+        ndarray
+            A 4D array representing the partial derivatives of H with respect
+            to x and y.
+
+        """
         nx_ = self.H.shape[1]
         ny_ = self.H.shape[0]
 
@@ -185,8 +212,10 @@ class Anisotropy:
         for j in range(1,nx_-1):
             for i in range(1, ny_ - 1):
 
-                dh_dy = (self.H[i + 1, j, :, :] - self.H[i - 1, j, :, :]) / (2 * dy)
-                dh_dx = (self.H[i, j + 1, :, :] - self.H[i , j - 1, :, :]) / (2 * dx)
+                dh_dy = (self.H[i + 1, j, :, :] - self.H[i - 1, j, :, :]
+                         ) / (2 * dy)
+                dh_dx = (self.H[i, j + 1, :, :] - self.H[i , j - 1, :, :]
+                         ) / (2 * dx)
 
                 dh00_dy = dh_dy[0, 0]
                 dh01_dy = dh_dy[0, 1]
@@ -211,6 +240,8 @@ def anisotropy_from_svg(path: str, beta: float, gamma: float,
         beta (float): Beta parameter.
         gamma (float): Gamma parameter.
         norm_type (str, optional): Type of normalization. Defaults to 'norm'.
+        k (int, optional): No of neighbours to consider when interpolating.
+        Defaults to 3.
 
     Returns:
     -------
@@ -223,14 +254,14 @@ def anisotropy_from_svg(path: str, beta: float, gamma: float,
     xmlns = get_inkscape_namespace(root)
     tfm = get_inkscape_transform(root, xmlns)
 
-
-    width = float(root.attrib['width'][:-2])
-    height = float(root.attrib['height'][:-2])
+    view_box = root.attrib['viewBox']
+    view_box = re.findall(r'(-?[\d]+[\.]?[\d]*)', view_box)
+    _, _, width, height = (float(i) for i in view_box)
 
     P = []
-    
+
     # Remove defitinions to skip style 'path' elements, like arrows heads.
-    defs = next(root.iter(f'{xmlns}defs'))  
+    defs = next(root.iter(f'{xmlns}defs'))
     root.remove(defs)
 
     for child in root.iter(f'{xmlns}path'):
@@ -254,11 +285,6 @@ def anisotropy_from_svg(path: str, beta: float, gamma: float,
         p0[1] =  p0[1]
         p1[1] = p1[1]
 
-        ## When in quadrant III and IV, switch to quadrant I or II.
-        #if p1[0] < 0:
-        #    p1[0] *= -1
-        #    p1[1] *= -1
-
         P.append([p0[0], p0[1], p1[0], p1[1]])
 
     P = np.asarray(P)
@@ -278,15 +304,32 @@ def anisotropy_from_svg(path: str, beta: float, gamma: float,
     else:
         msg = f'Unknown norm_type = "{norm_type}"'
         raise ValueError(msg)
-    
+
     x_u = np.column_stack((x,u))
 
     return Anisotropy(x_u, beta, gamma, width,
                       height, k)
 
 
-def anisotropy_stationary(theta, gamma, beta):
+def anisotropy_stationary(theta: float, gamma: float, beta: float,
+                          ) -> Anisotropy:
+    """Create an Anisotropy stationary anisotrpy from an angle.
 
+    Parameters
+    ----------
+    theta : float
+        The angle in degrees at which the anisotropy pattern is oriented.
+    gamma : float
+        The isotropic baseline effect coefficient.
+    beta : float
+        The anisotropic local effect coefficient.
+
+    Returns
+    -------
+    Anisotropy
+        An Anisotropy object representing the stationary anisotropy pattern.
+
+    """
     theta = np.radians(theta)
 
     v =  np.asarray([- np.sin(theta),  np.cos(theta)])

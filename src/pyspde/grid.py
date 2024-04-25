@@ -89,6 +89,7 @@ class Grid:
         anis = self.anisotropy
         k = min(anis.k,  len(anis.x))
 
+
         if anis.scale:
             scale_x = self.nx * self.dx / anis.width
             scale_y = self.ny * self.dy / anis.height
@@ -100,6 +101,13 @@ class Grid:
 
         x = (anis.x * scale_x) + self.padx
         y = (anis.y * scale_y) + self.pady
+
+       #import matplotlib.pyplot as plt
+       #plt.imshow(np.random.rand(self._ny, self._nx))
+       #plt.scatter(x, y, c=anis.u, cmap='jet')
+
+       #plt.show()
+       #breakpoint()
 
         X = np.column_stack((x, y))
         U = np.column_stack((anis.u, anis.v))
