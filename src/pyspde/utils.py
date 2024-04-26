@@ -8,8 +8,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import xml.etree.ElementTree as Et
 
-__all__ = ['imdict', 'map_2d_1d_nx_ny', 'map_1d_2d_nx', 'sample_grid',
-           'get_inkscape_transform', 'get_inkscape_namespace']
+__all__ = ['sample_grid']
 
 class imdict(dict):
     def __hash__(self) -> None:
@@ -98,8 +97,8 @@ def get_inkscape_transform(root: Et.Element, xmlns: str,
     """
     try:
         translate = next(root.iter(f'{xmlns}g')).attrib['transform']
-        translate = re.search(r'translate\((\d+\.\d+),(\d+\.\d+)\)',translate)
 
+        translate = re.search(r'translate\((-?\d+\.\d+),(-?\d+\.\d+)\)',translate)
         if translate is None:
             translate = (0, 0)
         else:
