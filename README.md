@@ -25,18 +25,18 @@ pip install pyspde
 
 Imports:
 ```
-from pyspde import anisotropy, Grid, Spde
+from pyspde import anisotropy, Grid, Spde, anisotropy_from_svg
 ```
 
 Define the anisotropy and the grid:
 ```
-atpy = anisotropy_from_svg(r'assets/anticline.svg', beta=10, gamma=0.1)
-grid = Grid(nx=200, ny=100, anisotropy=atpy)
+atpy = anisotropy_from_svg(r'assets/anticline.svg', beta=50, gamma=0.5)
+grid = Grid(nx=400, ny=200, anisotropy=atpy)
 ```
 
 Define SPDE and Simulate:
 ```
-sp = Spde(grid, sigma=1, a=25)
+sp = Spde(grid, sigma=1, a=50)
 Z = sp.simulate(seed=0)
 ```
 
