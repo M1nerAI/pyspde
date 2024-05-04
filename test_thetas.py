@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+import matplotlib.patches as patches
 import numpy as np
 from src.pyspde import anisotropy_from_svg, anisotropy_stationary, Grid, Spde
 from scipy.stats import qmc 
@@ -9,6 +10,31 @@ import uuid
 
 uuid_ = str(uuid.uuid4())[:8]
 script = inspect.getsource(inspect.getmodule(inspect.currentframe()))
+
+
+class Drilling:
+    def __init__(self, reality, spacing):
+        ny, nx = reality.shape
+
+        self.drill_index = np.round(np.arange(nx/space_samp/2, nx, nx/spacing)).astype(int)
+
+        rect = patches.Rectangle((50, 100), 40, 30, linewidth=1, edgecolor='r', facecolor='none')
+
+    def add_patches(self, ax):
+
+        for idx in self.drill_index:
+            patch = patches.Rectangle((idx, 0), 1, ny, linewidth=0.5, edgecolor='black', facecolor='none')
+            ax.add_patch(patch)
+
+
+
+
+
+
+class Drill:
+    def __init__(self, x, y, z):
+        self.x = x
+        self.y = y
 
 
 tag = 'tag'
@@ -25,7 +51,7 @@ fps = 6
 n_simu = int(fps*5)
 
 #nSeconds = 0.2
-drill_index = np.round(np.arange(nx/space_samp/2, nx, nx/space_samp)).astype(int)
+
 
 Zs = []
 
@@ -45,11 +71,15 @@ sp = Spde(grid, sigma=1, a=a)
 
 reality = sp.simulate(seed=None).squeeze()
 
+drilling = Drilling(reality, space_samp)
+fig, ax = plt.subplots()
+ax.imshow(reality, vmax=2, vmin=-2)
+
+drilling.add_patches(ax)
+fig.show()
 breakpoint()
 
-plt.imshow(reality, vmax=2, vmin=-2)
 print(reality.mean(), reality.std())
-plt.show()
 
 
 sampler = qmc.Halton(d=2, scramble=False)
