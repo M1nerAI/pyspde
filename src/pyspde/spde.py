@@ -289,9 +289,13 @@ class Spde:
         """
         xv = samples[:,0].astype(int)
         yv = samples[:,1].astype(int)
-        z_ = samples[:,2]
+        z_ = samples[:,2:]
+
+        if z_.ndim == 1:
+            z_ = z_[:, np.newaxis]
 
         n_samps = z_.shape[0]
+        n_vars = z_.shape[1]
 
         xv += self.grid.padx
         yv += self.grid.pady
@@ -337,11 +341,12 @@ class Spde:
                    'check anisotropy.check_positiveness()')
             raise RuntimeError(msg)
 
-        Z = -factor.solve_A(Q_yx @ z_[:, np.newaxis])[:, 0]
 
-        Z_M = np.empty((self.grid._ny, self.grid._nx))
-        Z_M[i_grid, j_grid] = Z
-        Z_M[yv, xv] = z_
+        Z = -factor.solve_A(Q_yx @ z_)
+
+        Z_M = np.empty((self.grid._ny, self.grid._nx, n_vars))
+        Z_M[i_grid, j_grid, :] = Z
+        Z_M[yv, xv, :] = z_
 
         Z_M = self.revert_padding(Z_M)\
                   .squeeze()
